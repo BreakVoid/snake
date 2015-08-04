@@ -101,12 +101,12 @@ void MaintainMap()
 int BFS(const int &sX, const int &sY)
 {
 	bool vis[MAX_N][MAX_N] = {0};
-	list<Point> que;
+	vector<Point> que;
 	que.push_back(Point(sX, sY));
 	vis[sX][sY] = true;
-	for (list<Point>::iterator iter = que.begin(); iter != que.end(); ++iter) {
-		int uX = iter->x;
-		int uY = iter->y;
+	for (int i = 0; i < que.size(); ++i) {
+		int uX = que[i].x;
+		int uY = que[i].y;
 		for (int i = 0; i < 4; ++i) {
 			int tX = uX + dx[i];
 			int tY = uY + dy[i];
@@ -123,6 +123,60 @@ int BFS(const int &sX, const int &sY)
 		}
 	}
 	return que.size();
+}
+
+int CurHeadDirection(int id)
+{
+	list<Point>::iterator iter = snake[id].begin();
+	Point head = *iter++;
+	Point next = *iter;
+	if (head.x == next.x) {
+		if (head.y == next.y + 1) {
+			return 1;
+		} else {
+			return 3;
+		}
+	} else {
+		if (head.x == next.y + 1) {
+			return 2;
+		} else {
+			return 0;
+		}
+	}
+}
+
+int MakeDecision(Json::Value &ret)
+{
+	MaintainMap();
+	vector<int> consider;
+	int bestCnt = 0;
+	int headX = snake[0].begin()->x;
+	int headY = snake[0].begin()->y;
+	for (int dir = 0; dir < 4; ++dir) {
+		if (validDirection(0, dir)) {
+			int sX = headX + dx[dir];
+			int sY = headY + dy[dir];
+			int result = BFS(sX, sY);
+			ret["response"]["debug"][char(dir + '0')]["result"] = result;
+			if (bestCnt < result) {
+				consider.clear();
+				consider.push_back(dir);
+				bestCnt = result;
+			} else if (bestCnt == result) {
+				consider.push_back(dir);
+			}
+		}
+	}
+	int cur = CurHeadDirection(0);
+	if (consider.size() > 1) {
+		for (int i = 0; i < consider.size(); ++i) {
+			if (consider[i] == cur) {
+				continue;
+			}
+			return consider[i];
+		}
+	}
+	return consider.front();
 }
 
 int main()
@@ -175,10 +229,8 @@ int main()
 		deleteEnd(1);
 	}
 
-	MaintainMap();
-
 	Json::Value ret;
-	ret["response"]["direction"] = possibleDire[0];
+	ret["response"]["direction"] = MakeDecision(ret);
 
 	Json::FastWriter writer;
 	cout << writer.write(ret) << endl;
