@@ -6,21 +6,24 @@
 #include <string>
 #include <ctime>
 #include "jsoncpp/json.h"
-using namespace std;
-int n, m;
-const int maxn = 25;
-const int dx[4] = { -1,0,1,0 };
-const int dy[4] = { 0,1,0,-1 };
-bool invalid[maxn][maxn];
 
-struct point {
+using namespace std;
+
+const int MAX_N = 25;
+const int dx[4] = {-1, 0, 1, 0};
+const int dy[4] = {0, 1, 0, -1};
+
+bool invalid[MAX_N][MAX_N];
+int n, m;
+
+struct Point {
 	int x, y;
-	point(const int &_x, const int &_y)
+	Point(const int &_x, const int &_y)
 		: x(_x), y(_y)
 	{}
 };
 
-list<point> snake[2]; // 0表示自己的蛇，1表示对方的蛇
+list<Point> snake[2]; // 0表示自己的蛇，1表示对方的蛇
 int possibleDire[10];
 int posCount;
 
@@ -38,17 +41,17 @@ void deleteEnd(int id)     //删除蛇尾
 
 void move(int id, int dire, int num)  //编号为id的蛇朝向dire方向移动一步
 {
-	point p = *(snake[id].begin());
+	Point p = *(snake[id].begin());
 	int x = p.x + dx[dire];
 	int y = p.y + dy[dire];
-	snake[id].push_front(point(x, y));
+	snake[id].push_front(Point(x, y));
 	if (!whetherGrow(num))
 		deleteEnd(id);
 }
 void outputSnakeBody(int id)    //调试语句
 {
 	cout << "Snake No." << id << endl;
-	for (list<point>::iterator iter = snake[id].begin(); iter != snake[id].end(); ++iter)
+	for (list<Point>::iterator iter = snake[id].begin(); iter != snake[id].end(); ++iter)
 		cout << iter->x << " " << iter->y << endl;
 	cout << endl;
 }
@@ -56,7 +59,7 @@ void outputSnakeBody(int id)    //调试语句
 bool isInBody(int x, int y)   //判断(x,y)位置是否有蛇
 {
 	for (int id = 0; id <= 1; id++)
-		for (list<point>::iterator iter = snake[id].begin(); iter != snake[id].end(); ++iter)
+		for (list<Point>::iterator iter = snake[id].begin(); iter != snake[id].end(); ++iter)
 			if (x == iter->x && y == iter->y)
 				return true;
 	return false;
@@ -64,7 +67,7 @@ bool isInBody(int x, int y)   //判断(x,y)位置是否有蛇
 
 bool validDirection(int id, int k)  //判断当前移动方向的下一格是否合法
 {
-	point p = *(snake[id].begin());
+	Point p = *(snake[id].begin());
 	int x = p.x + dx[k];
 	int y = p.y + dy[k];
 	if (x > n || y > m || x < 1 || y < 1) return false;
@@ -73,72 +76,53 @@ bool validDirection(int id, int k)  //判断当前移动方向的下一格是否合法
 	return true;
 }
 
-int Rand(int p)   //随机生成一个0到p的数字
-{
-	return rand()*rand()*rand() % p;
-}
+int canPass[MAX_N][MAX_N] = {0};
 
-int TurnLeft(int id)
+void MaintainMap()
 {
-	list<point>::iterator iter = snake[id].begin();
-	point first(iter->x, iter->y);
-	iter++;
-	point second(iter->x, iter->y);
-	if (first.x == second.x) {
-		if (first.y == second.y + 1) {
-			return 2;
-		} else {
-			return 0;
+	
+	for (int i = 1; i <= n; ++i) {
+		for (int j = 1; j <= m; ++j) {
+			if (invalid[i][j]) {
+				canPass[i][j] = 100000;
+			} else {
+				canPass[i][j] = 0;
+			}
 		}
-	} else {
-		if (first.x == second.x + 1) {
-			return 3;
-		} else {
-			return 1;
+	}
+	for (int id = 0; id <= 1; id++) {
+		int len = 1;
+		for (list<Point>::iterator iter = snake[id].begin(); iter != snake[id].end(); ++iter, ++len) {
+			canPass[iter->x][iter->y] = len;
 		}
 	}
 }
 
-int TurnRight(int id)
+int BFS(const int &sX, const int &sY)
 {
-	list<point>::iterator iter = snake[id].begin();
-	point first(iter->x, iter->y);
-	iter++;
-	point second(iter->x, iter->y);
-	if (first.x == second.x) {
-		if (first.y == second.y + 1) {
-			return 0;
-		} else {
-			return 2;
-		}
-	} else {
-		if (first.x == second.x + 1) {
-			return 1;
-		} else {
-			return 3;
+	bool vis[MAX_N][MAX_N] = {0};
+	list<Point> que;
+	que.push_back(Point(sX, sY));
+	vis[sX][sY] = true;
+	for (list<Point>::iterator iter = que.begin(); iter != que.end(); ++iter) {
+		int uX = iter->x;
+		int uY = iter->y;
+		for (int i = 0; i < 4; ++i) {
+			int tX = uX + dx[i];
+			int tY = uY + dy[i];
+			if (tX > n || tY > m || tX < 1 || tY < 1) {
+				continue;
+			}
+			if (canPass[tX][tY]) {
+				continue;
+			}
+			if (!vis[tX][tY]) {
+				vis[tX][tY] = true;
+				que.push_back(Point(tX, tY));
+			}
 		}
 	}
-}
-
-int GoStraight(int id)
-{
-	list<point>::iterator iter = snake[id].begin();
-	point first(iter->x, iter->y);
-	iter++;
-	point second(iter->x, iter->y);
-	if (first.x == second.x) {
-		if (first.y == second.y + 1) {
-			return 3;
-		} else {
-			return 1;
-		}
-	} else {
-		if (first.x == second.x + 1) {
-			return 2;
-		} else {
-			return 0;
-		}
-	}
+	return que.size();
 }
 
 int main()
@@ -158,11 +142,11 @@ int main()
 
 	int x = input["requests"][(Json::Value::UInt) 0]["x"].asInt();  //读蛇初始化的信息
 	if (x == 1) {
-		snake[0].push_front(point(1, 1));
-		snake[1].push_front(point(n, m));
+		snake[0].push_front(Point(1, 1));
+		snake[1].push_front(Point(n, m));
 	} else {
-		snake[1].push_front(point(1, 1));
-		snake[0].push_front(point(n, m));
+		snake[1].push_front(Point(1, 1));
+		snake[0].push_front(Point(n, m));
 	}
 	//处理地图中的障碍物
 	int obsCount = input["requests"][(Json::Value::UInt) 0]["obstacle"].size();
@@ -190,16 +174,8 @@ int main()
 		deleteEnd(0);
 		deleteEnd(1);
 	}
-	int dirCnt = 0;
-	if (validDirection(0, TurnLeft(0))) {
-		possibleDire[dirCnt++] = TurnLeft(0);
-	}
-	if (validDirection(0, TurnRight(0))) {
-		possibleDire[dirCnt++] = TurnRight(0);
-	}
-	if (validDirection(0, GoStraight(0))) {
-		possibleDire[dirCnt++] = GoStraight(0);
-	}
+
+	MaintainMap();
 
 	Json::Value ret;
 	ret["response"]["direction"] = possibleDire[0];
