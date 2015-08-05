@@ -6,7 +6,9 @@
 #include <list>
 #include <queue>
 #include <string>
+#include <vector>
 #include <ctime>
+#include <climits>
 #include "jsoncpp/json.h"
 
 using namespace std;
@@ -20,7 +22,7 @@ int n, m;
 
 struct Point {
 	int x, y;
-	Point(const int &_x, const int &_y)
+	Point(const int &_x = 0, const int &_y = 0)
 		: x(_x), y(_y)
 	{}
 };
@@ -78,100 +80,7 @@ bool validDirection(int id, int k)  //判断当前移动方向的下一格是否合法
 	return true;
 }
 
-int canPass[MAX_N][MAX_N] = {0};
-
-void MaintainMap()
-{
-	for (int i = 1; i <= n; ++i) {
-		for (int j = 1; j <= m; ++j) {
-			if (invalid[i][j]) {
-				canPass[i][j] = 100000;
-			} else {
-				canPass[i][j] = 0;
-			}
-		}
-	}
-	for (int id = 0; id <= 1; id++) {
-		int len = 1;
-		for (list<Point>::iterator iter = snake[id].begin(); iter != snake[id].end(); ++iter) {
-			canPass[iter->x][iter->y] = len++;
-		}
-	}
-}
-
-int BFS(const int &sX, const int &sY)
-{
-	bool vis[MAX_N][MAX_N] = {0};
-	queue<Point> que;
-	que.push(Point(sX, sY));
-	vis[sX][sY] = true;
-	int cnt = 1;
-	while (!que.empty()) {
-		for (int i = 0; i < 4; ++i) {
-			int tX = que.front().x + dx[i];
-			int tY = que.front().y + dy[i];
-			if (tX < 1 || tY < 1 || tX > n || tY > m || canPass[tX][tY] > 0) {
-				continue;
-			}
-			if (!vis[tX][tY]) {
-				vis[tX][tY] = true;
-				++cnt;
-				que.push(Point(tX, tY));
-			}
-		}
-		que.pop();
-	}
-	return cnt;
-}
-
-int CurHeadDirection(int id)
-{
-	list<Point>::iterator iter = snake[id].begin();
-	Point head = *iter++;
-	Point next = *iter;
-	if (head.x == next.x) {
-		if (head.y == next.y + 1) {
-			return 1;
-		} else {
-			return 3;
-		}
-	} else {
-		if (head.x == next.y + 1) {
-			return 2;
-		} else {
-			return 0;
-		}
-	}
-}
-
-int MakeDecision(Json::Value &ret)
-{
-	MaintainMap();
-	vector<int> consider;
-	int bestCnt = 0;
-	int headX = snake[0].begin()->x;
-	int headY = snake[0].begin()->y;
-	int cnt = 0;
-	for (int dir = 0; dir < 4; ++dir) {
-		if (validDirection(0, dir)) {
-			int sX = headX + dx[dir];
-			int sY = headY + dy[dir];
-			int result = BFS(sX, sY);
-			ostringstream oss;
-			oss << "BFS at (" << sX << "," << sY << ") with empty unit " << result;
-			ret["response"]["debug"][cnt++] = oss.str().c_str();
-			if (bestCnt < result) {
-				consider.clear();
-				consider.push_back(dir);
-				bestCnt = result;
-			} else if (bestCnt == result) {
-				consider.push_back(dir);
-			}
-		}
-	}
-	srand((unsigned)time(NULL));
-	return consider[rand() % consider.size()];
-}
+int MakeDecision();
 
 int main()
 {
@@ -224,10 +133,158 @@ int main()
 	}
 
 	Json::Value ret;
-	ret["response"]["direction"] = MakeDecision(ret);
+	ret["response"]["direction"] = MakeDecision();
 
 	Json::FastWriter writer;
 	cout << writer.write(ret) << endl;
 
 	return 0;
+}
+
+int grid[MAX_N][MAX_N] = {0};
+
+void MaintainGrid()
+{
+	for (int i = 1; i <= n; ++i) {
+		for (int j = 1; j <= m; ++j) {
+			if (invalid[i][j]) {
+				grid[i][j] = INT_MAX;
+			} else {
+				grid[i][j] = 0;
+			}
+		}
+	}
+for (int id = 0; id <= 1; ++id) {
+	for (list<Point>::iterator iter = snake[id].begin(); iter != snake[id].end(); ++iter) {
+		grid[iter->x][iter->y] = id == 0 ? 1 : -1;
+	}
+}
+}
+
+int dist[MAX_N][MAX_N] = {0};
+
+void BFS(const Point &S)
+{
+	memset(dist, 0x7f, sizeof(dist));
+	queue<Point> que;
+	que.push(S);
+	dist[S.x][S.y] = 0;
+	while (!que.empty()) {
+		for (int i = 0; i < 4; ++i) {
+			int X = que.front().x + dx[i];
+			int Y = que.front().y + dy[i];
+			if (X < 1 || Y < 1 || X > n || Y > m || grid[X][Y] > 0) {
+				continue;
+			}
+			if (dist[X][Y] > dist[que.front().x][que.front().y] + 1) {
+				dist[X][Y] = dist[que.front().x][que.front().y] + 1;
+				que.push(Point(X, Y));
+			}
+		}
+		que.pop();
+	}
+}
+
+inline Point GetHead(const int &id)
+{
+	return snake[id].front();
+}
+
+inline Point GetTail(const int &id)
+{
+	return snake[id].back();
+}
+
+int MakeDecision()
+{
+	srand((unsigned)time(NULL));
+	MaintainGrid();
+	Point head = GetHead(0);
+	Point tail = GetTail(0);
+	//BFS from the tail of snake No.0
+	BFS(tail);
+	if (dist[head.x][head.y] < 0x7f7f7f7f) {
+		// Can reach the tail of snake No.0
+		deque<int> choice;
+		int farthest = 0;
+		for (int i = 0; i < 4; ++i) {
+			int X = head.x + dx[i];
+			int Y = head.y + dy[i];
+			if (validDirection(0, i)) {
+				if (dist[X][Y] < 0x7f7f7f7f && farthest <= dist[X][Y]) {
+					farthest = dist[X][Y];
+					choice.push_front(i);
+				} else if (dist[X][Y] < 0x7f7f7f7f) {
+					choice.push_back(i);
+				}
+			}
+		}
+		return choice[choice.size() >> 1];
+	} else {
+		// Cannot reach the tail of snake No.0
+		tail = GetTail(1);
+		BFS(tail);
+		// Try to reach the tail of snake No.1
+		if (dist[head.x][head.y] < 0x7f7f7f7f) {
+			// Can reach the tail of snake No.1
+			deque<int> choice;
+			int farthest = 0;
+			for (int i = 0; i < 4; ++i) {
+				int X = head.x + dx[i];
+				int Y = head.y + dy[i];
+				if (validDirection(0, i)) {
+					if (dist[X][Y] < 0x7f7f7f7f && farthest <= dist[X][Y]) {
+						farthest = dist[X][Y];
+						choice.push_front(i);
+					} else if (dist[X][Y] < 0x7f7f7f7f) {
+						choice.push_back(i);
+					}
+				}
+			}
+			return choice[choice.size() >> 1];
+		} else {
+			// Cannot reach the tail of snake No.1
+			Point target;
+			BFS(head);
+			for (list<Point>::iterator 
+				 iter1 = snake[0].begin(), 
+				 iter2 = snake[1].begin();
+				iter1 != snake[0].end() && iter2 != snake[1].end();
+					iter1++, iter2++) {
+				if (dist[iter2->x][iter2->y] < 0x7f7f7f7f) {
+					target = *iter2;
+				}
+				if (dist[iter1->x][iter1->y] < 0x7f7f7f7f) {
+					target = *iter1;
+				}
+			}
+			if (target.x == 0 && target.y == 0) {
+				goto RANDOM_DECISION;
+			}
+			BFS(target);
+			deque<int> choice;
+			int farthest = 0;
+			for (int i = 0; i < 4; ++i) {
+				int X = head.x + dx[i];
+				int Y = head.y + dy[i];
+				if (validDirection(0, i)) {
+					if (dist[X][Y] < 0x7f7f7f7f && farthest <= dist[X][Y]) {
+						farthest = dist[X][Y];
+						choice.push_front(i);
+					} else if (dist[X][Y] < 0x7f7f7f7f) {
+						choice.push_back(i);
+					}
+				}
+			}
+			return choice[choice.size() >> 1];
+		}
+	}
+RANDOM_DECISION:
+	vector<int> choice;
+	for (int i = 0; i < 4; ++i) {
+		if (validDirection(0, i)) {
+			choice.push_back(i);
+		}
+	}
+	return choice[rand() % choice.size()];
 }
