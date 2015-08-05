@@ -205,21 +205,7 @@ int MakeDecision()
 	BFS(tail);
 	if (dist[head.x][head.y] < 0x7f7f7f7f) {
 		// Can reach the tail of snake No.0
-		deque<int> choice;
-		int farthest = 0;
-		for (int i = 0; i < 4; ++i) {
-			int X = head.x + dx[i];
-			int Y = head.y + dy[i];
-			if (validDirection(0, i)) {
-				if (dist[X][Y] < 0x7f7f7f7f && farthest <= dist[X][Y]) {
-					farthest = dist[X][Y];
-					choice.push_front(i);
-				} else if (dist[X][Y] < 0x7f7f7f7f) {
-					choice.push_back(i);
-				}
-			}
-		}
-		return choice[choice.size() >> 1];
+		goto MAKE_DECISION;
 	} else {
 		// Cannot reach the tail of snake No.0
 		tail = GetTail(1);
@@ -227,21 +213,7 @@ int MakeDecision()
 		// Try to reach the tail of snake No.1
 		if (dist[head.x][head.y] < 0x7f7f7f7f) {
 			// Can reach the tail of snake No.1
-			deque<int> choice;
-			int farthest = 0;
-			for (int i = 0; i < 4; ++i) {
-				int X = head.x + dx[i];
-				int Y = head.y + dy[i];
-				if (validDirection(0, i)) {
-					if (dist[X][Y] < 0x7f7f7f7f && farthest <= dist[X][Y]) {
-						farthest = dist[X][Y];
-						choice.push_front(i);
-					} else if (dist[X][Y] < 0x7f7f7f7f) {
-						choice.push_back(i);
-					}
-				}
-			}
-			return choice[choice.size() >> 1];
+			goto MAKE_DECISION;
 		} else {
 			// Cannot reach the tail of snake No.1
 			Point target;
@@ -262,29 +234,39 @@ int MakeDecision()
 				goto RANDOM_DECISION;
 			}
 			BFS(target);
-			deque<int> choice;
-			int farthest = 0;
-			for (int i = 0; i < 4; ++i) {
-				int X = head.x + dx[i];
-				int Y = head.y + dy[i];
-				if (validDirection(0, i)) {
-					if (dist[X][Y] < 0x7f7f7f7f && farthest <= dist[X][Y]) {
-						farthest = dist[X][Y];
-						choice.push_front(i);
-					} else if (dist[X][Y] < 0x7f7f7f7f) {
-						choice.push_back(i);
-					}
+			goto MAKE_DECISION;
+		}
+	}
+MAKE_DECISION:
+	{
+		deque<int> choice;
+		int farthest = 0;
+		for (int i = 0; i < 4; ++i) {
+			int X = head.x + dx[i];
+			int Y = head.y + dy[i];
+			if (validDirection(0, i)) {
+				if (dist[X][Y] < 0x7f7f7f7f && farthest <= dist[X][Y]) {
+					farthest = dist[X][Y];
+					choice.push_front(i);
+				} else if (dist[X][Y] < 0x7f7f7f7f) {
+					choice.push_back(i);
 				}
 			}
-			return choice[choice.size() >> 1];
+		}
+		if (farthest > snake[0].size() * 2 / 3) {
+			return choice.back();
+		} else {
+			return choice.front();
 		}
 	}
 RANDOM_DECISION:
-	vector<int> choice;
-	for (int i = 0; i < 4; ++i) {
-		if (validDirection(0, i)) {
-			choice.push_back(i);
+	{
+		vector<int> choice;
+		for (int i = 0; i < 4; ++i) {
+			if (validDirection(0, i)) {
+				choice.push_back(i);
+			}
 		}
+		return choice[rand() % choice.size()];
 	}
-	return choice[rand() % choice.size()];
 }
