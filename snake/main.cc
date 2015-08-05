@@ -2,7 +2,9 @@
 #include <cstdlib>
 #include <cstring>
 #include <iostream>
+#include <sstream>
 #include <list>
+#include <queue>
 #include <string>
 #include <ctime>
 #include "jsoncpp/json.h"
@@ -80,7 +82,6 @@ int canPass[MAX_N][MAX_N] = {0};
 
 void MaintainMap()
 {
-	
 	for (int i = 1; i <= n; ++i) {
 		for (int j = 1; j <= m; ++j) {
 			if (invalid[i][j]) {
@@ -92,8 +93,8 @@ void MaintainMap()
 	}
 	for (int id = 0; id <= 1; id++) {
 		int len = 1;
-		for (list<Point>::iterator iter = snake[id].begin(); iter != snake[id].end(); ++iter, ++len) {
-			canPass[iter->x][iter->y] = len;
+		for (list<Point>::iterator iter = snake[id].begin(); iter != snake[id].end(); ++iter) {
+			canPass[iter->x][iter->y] = len++;
 		}
 	}
 }
@@ -101,28 +102,26 @@ void MaintainMap()
 int BFS(const int &sX, const int &sY)
 {
 	bool vis[MAX_N][MAX_N] = {0};
-	vector<Point> que;
-	que.push_back(Point(sX, sY));
+	queue<Point> que;
+	que.push(Point(sX, sY));
 	vis[sX][sY] = true;
-	for (int i = 0; i < que.size(); ++i) {
-		int uX = que[i].x;
-		int uY = que[i].y;
+	int cnt = 1;
+	while (!que.empty()) {
 		for (int i = 0; i < 4; ++i) {
-			int tX = uX + dx[i];
-			int tY = uY + dy[i];
-			if (tX > n || tY > m || tX < 1 || tY < 1) {
-				continue;
-			}
-			if (canPass[tX][tY]) {
+			int tX = que.front().x + dx[i];
+			int tY = que.front().y + dy[i];
+			if (tX < 1 || tY < 1 || tX > n || tY > m || canPass[tX][tY] > 0) {
 				continue;
 			}
 			if (!vis[tX][tY]) {
 				vis[tX][tY] = true;
-				que.push_back(Point(tX, tY));
+				++cnt;
+				que.push(Point(tX, tY));
 			}
 		}
+		que.pop();
 	}
-	return que.size();
+	return cnt;
 }
 
 int CurHeadDirection(int id)
@@ -152,12 +151,15 @@ int MakeDecision(Json::Value &ret)
 	int bestCnt = 0;
 	int headX = snake[0].begin()->x;
 	int headY = snake[0].begin()->y;
+	int cnt = 0;
 	for (int dir = 0; dir < 4; ++dir) {
 		if (validDirection(0, dir)) {
 			int sX = headX + dx[dir];
 			int sY = headY + dy[dir];
 			int result = BFS(sX, sY);
-			ret["response"]["debug"][char(dir + '0')]["result"] = result;
+			ostringstream oss;
+			oss << "BFS at (" << sX << "," << sY << ") with empty unit " << result;
+			ret["response"]["debug"][cnt++] = oss.str().c_str();
 			if (bestCnt < result) {
 				consider.clear();
 				consider.push_back(dir);
@@ -167,16 +169,8 @@ int MakeDecision(Json::Value &ret)
 			}
 		}
 	}
-	int cur = CurHeadDirection(0);
-	if (consider.size() > 1) {
-		for (int i = 0; i < consider.size(); ++i) {
-			if (consider[i] == cur) {
-				continue;
-			}
-			return consider[i];
-		}
-	}
-	return consider.front();
+	srand((unsigned)time(NULL));
+	return consider[rand() % consider.size()];
 }
 
 int main()
