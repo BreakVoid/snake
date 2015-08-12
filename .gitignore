@@ -1,3 +1,7 @@
 snake/Debug/
 *.opensdf
 *.sdf
+snake/debug.txt
+snake/find-can-pass-debug.txt
+snake/find-tail-debug.txt
+snake/input.txt
