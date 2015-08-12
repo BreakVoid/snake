@@ -1,14 +1,21 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <ctime>
+#include <climits>
+
 #include <iostream>
 #include <sstream>
+#include <fstream>
+#include <iomanip>
+
 #include <list>
 #include <queue>
 #include <string>
 #include <vector>
-#include <ctime>
-#include <climits>
+#include <algorithm>
+#include <functional>>
+
 #include "jsoncpp/json.h"
 
 using namespace std;
@@ -80,6 +87,7 @@ bool validDirection(int id, int k)  //判断当前移动方向的下一格是否合法
 	return true;
 }
 
+int total;
 int MakeDecision();
 
 int main()
@@ -115,7 +123,7 @@ int main()
 	}
 
 	//根据历史信息恢复现场
-	int total = input["responses"].size();
+	total = input["responses"].size();
 
 	int dire;
 	for (int i = 0; i < total; i++) {
@@ -142,6 +150,45 @@ int main()
 }
 
 int grid[MAX_N][MAX_N] = {0};
+int canPass[MAX_N][MAX_N] = {0};
+int dist[MAX_N][MAX_N] = {0};
+int dangerous[MAX_N][MAX_N] = {0};
+
+#ifdef _DEBUG
+void Debug(string filename)
+{
+	ofstream debug(filename);
+	for (int i = 1; i <= n; ++i) {
+		for (int j = 1; j <= m; ++j) {
+			debug << setw(12) << grid[i][j];
+		}
+		debug << endl;
+	}
+	debug << endl;
+	for (int i = 1; i <= n; ++i) {
+		for (int j = 1; j <= m; ++j) {
+			debug << setw(12) << canPass[i][j];
+		}
+		debug << endl;
+	}
+	debug << endl;
+	for (int i = 1; i <= n; ++i) {
+		for (int j = 1; j <= m; ++j) {
+			debug << setw(12) << dist[i][j];
+		}
+		debug << endl;
+	}
+	debug << endl;
+	for (int i = 1; i <= n; ++i) {
+		for (int j = 1; j <= m; ++j) {
+			debug << setw(12) << dangerous[i][j];
+		}
+		debug << endl;
+	}
+	debug << endl;
+	debug.close();
+}
+#endif
 
 void MaintainGrid()
 {
@@ -154,14 +201,107 @@ void MaintainGrid()
 			}
 		}
 	}
-for (int id = 0; id <= 1; ++id) {
-	for (list<Point>::iterator iter = snake[id].begin(); iter != snake[id].end(); ++iter) {
-		grid[iter->x][iter->y] = id == 0 ? 1 : -1;
+	for (int id = 0; id <= 1; ++id) {
+		int roundCnt = total + 1;
+		for (list<Point>::reverse_iterator iter = snake[id].rbegin(); iter != snake[id].rend(); ++iter) {
+			while (whetherGrow(roundCnt)) {
+				++roundCnt;
+			}
+			grid[iter->x][iter->y] = (roundCnt++) - total;
+		}
 	}
 }
+
+bool isInBody(const int &x, const int &y, list<Point> snake[2])   //判断(x,y)位置是否有蛇
+{
+	for (int id = 0; id <= 1; id++)
+		for (list<Point>::iterator iter = snake[id].begin(); iter != snake[id].end(); ++iter)
+			if (x == iter->x && y == iter->y)
+				return true;
+	return false;
 }
 
-int dist[MAX_N][MAX_N] = {0};
+void CalcCanPass()
+{
+	int uX = snake[0].front().x;
+	int uY = snake[0].front().y;
+	for (int i = 1; i <= n; ++i) {
+		for (int j = 1; j <= m; ++j) {
+			dist[i][j] = abs(uX - i) + abs(uY - j);
+			if (dist[i][j] >= grid[i][j]) {
+				canPass[i][j] = true;
+			} else {
+				canPass[i][j] = false;
+			}
+		}
+	}
+}
+
+void CalcDangerous()
+{
+	int status[MAX_N][MAX_N] = {0};
+	queue<Point> que;
+	for (int i = 1; i <= n; ++i) {
+		for (int j = 1; j <= m; ++j) {
+			if (!canPass[i][j]) {
+				dangerous[i][j] = 10000;
+				status[i][j] = 2;
+				continue;
+			}
+			int validDireCnt = 0;
+			for (int k = 0; k < 4; ++k) {
+				int X = i + dx[k];
+				int Y = j + dy[k];
+				if (X < 1 || Y < 1 || X > n || Y > m) {
+					continue;
+				}
+				if (canPass[X][Y]) {
+					validDireCnt++;
+				} else {
+					if (snake[0].front().x == X && snake[0].front().y == Y) {
+						validDireCnt++;
+					}
+				}
+			}
+			if (validDireCnt <= 1) {
+				dangerous[i][j] = 1000;
+				que.push(Point(i, j));
+				status[i][j] = 1;
+			}
+		}
+	}
+	Point head1 = snake[1].front();
+	for (int k = 0; k < 4; ++k) {
+		int X = head1.x + dx[k];
+		int Y = head1.y + dy[k];
+		if (X < 1 || Y < 1 || X > n || Y > m) {
+			continue;
+		}
+		if (canPass[X][Y]) {
+			dangerous[X][Y] = 1000;
+			que.push(Point(X, Y));
+			status[X][Y] = 1;
+		}
+	}
+	while (!que.empty()) {
+		int uX = que.front().x;
+		int uY = que.front().y;
+		status[uX][uY] = 2;
+		que.pop();
+		for (int i = 0; i < 4; ++i) {
+			int X = uX + dx[i];
+			int Y = uY + dy[i];
+			if (X < 1 || Y < 1 || X > n || Y > m || status[X][Y] == 2) {
+				continue;
+			}
+			dangerous[X][Y] += dangerous[uX][uY] >> 1;
+			if (status[X][Y] == 0) {
+				status[X][Y] = 1;
+				que.push(Point(X, Y));
+			}
+		}
+	}
+}
 
 void BFS(const Point &S)
 {
@@ -173,7 +313,7 @@ void BFS(const Point &S)
 		for (int i = 0; i < 4; ++i) {
 			int X = que.front().x + dx[i];
 			int Y = que.front().y + dy[i];
-			if (X < 1 || Y < 1 || X > n || Y > m || grid[X][Y] > 0) {
+			if (X < 1 || Y < 1 || X > n || Y > m || !canPass[X][Y]) {
 				continue;
 			}
 			if (dist[X][Y] > dist[que.front().x][que.front().y] + 1) {
@@ -195,78 +335,130 @@ inline Point GetTail(const int &id)
 	return snake[id].back();
 }
 
+struct DecisionType {
+	int dire, dist, dang;
+	DecisionType(const int &_dire = 0, const int &_dist = 0, const int &_dang = 0)
+		: dire(_dire), dist(_dist), dang(_dang)
+	{}
+};
+
+bool operator<(const DecisionType &lhs, const DecisionType &rhs)
+{
+	if (lhs.dang <= 125 && rhs.dang <= 125) {
+		return lhs.dist > rhs.dist;
+	} else if (lhs.dang > 125 && rhs.dang > 125) {
+		return lhs.dang < rhs.dang;
+	} else {
+		return lhs.dang <= 125;
+	}
+}
+
+int Choose(vector<DecisionType> choice)
+{
+	sort(choice.begin(), choice.end());
+	const int rate = 850;
+	for (int i = 0; i < choice.size() - 1; ++i) {
+		if (rand() % 1000 < rate) {
+			return choice[i].dire;
+		}
+	}
+	return choice.back().dire;
+}
+
+int SearchDecision();
+int RandomDecision();
+
 int MakeDecision()
 {
 	srand((unsigned)time(NULL));
 	MaintainGrid();
+	CalcCanPass();
+	CalcDangerous();
+#ifdef _DEBUG
+	void Debug(string);
+	Debug("find-can-pass-debug.txt");
+#endif
 	Point head = GetHead(0);
 	Point tail = GetTail(0);
 	//BFS from the tail of snake No.0
 	BFS(tail);
+#ifdef _DEBUG
+	void Debug(string);
+	Debug("find-tail-debug.txt");
+#endif
 	if (dist[head.x][head.y] < 0x7f7f7f7f) {
-		// Can reach the tail of snake No.0
-		goto MAKE_DECISION;
+		vector<DecisionType> choice;
+		for (int i = 0; i < 4; ++i) {
+			if (validDirection(0, i)) {
+				if (dist[head.x + dx[i]][head.y + dy[i]] < 0x7f7f7f7f) {
+					choice.push_back(DecisionType(i, dist[head.x + dx[i]][head.y + dy[i]], dangerous[head.x + dx[i]][head.y + dy[i]]));
+				}
+			}
+		}
+		return Choose(choice);
 	} else {
-		// Cannot reach the tail of snake No.0
-		tail = GetTail(1);
+		Point tai = GetTail(1);
 		BFS(tail);
-		// Try to reach the tail of snake No.1
 		if (dist[head.x][head.y] < 0x7f7f7f7f) {
-			// Can reach the tail of snake No.1
-			goto MAKE_DECISION;
+			vector<DecisionType> choice;
+			for (int i = 0; i < 4; ++i) {
+				if (validDirection(0, i)) {
+					if (dist[head.x + dx[i]][head.y + dy[i]] < 0x7f7f7f7f) {
+						choice.push_back(DecisionType(i, dist[head.x + dx[i]][head.y + dy[i]], dangerous[head.x + dx[i]][head.y + dy[i]]));
+					}
+				}
+			}
+			return Choose(choice);
 		} else {
-			// Cannot reach the tail of snake No.1
-			Point target;
-			BFS(head);
-			for (list<Point>::iterator 
-				 iter1 = snake[0].begin(), 
-				 iter2 = snake[1].begin();
-				iter1 != snake[0].end() && iter2 != snake[1].end();
-					iter1++, iter2++) {
-				if (dist[iter2->x][iter2->y] < 0x7f7f7f7f) {
-					target = *iter2;
-				}
-				if (dist[iter1->x][iter1->y] < 0x7f7f7f7f) {
-					target = *iter1;
-				}
-			}
-			if (target.x == 0 && target.y == 0) {
-				goto RANDOM_DECISION;
-			}
-			BFS(target);
-			goto MAKE_DECISION;
+			return SearchDecision();
 		}
 	}
-MAKE_DECISION:
-	{
-		deque<int> choice;
-		int farthest = 0;
+}
+
+int BlockSize(Point S)
+{
+	memset(dist, 0x7f, sizeof(dist));
+	queue<Point> que;
+	que.push(S);
+	dist[S.x][S.y] = 0;
+	int cnt = 1;
+	while (!que.empty()) {
 		for (int i = 0; i < 4; ++i) {
-			int X = head.x + dx[i];
-			int Y = head.y + dy[i];
-			if (validDirection(0, i)) {
-				if (dist[X][Y] < 0x7f7f7f7f && farthest <= dist[X][Y]) {
-					farthest = dist[X][Y];
-					choice.push_front(i);
-				} else if (dist[X][Y] < 0x7f7f7f7f) {
-					choice.push_back(i);
-				}
+			int X = que.front().x + dx[i];
+			int Y = que.front().y + dy[i];
+			if (X < 1 || Y < 1 || X > n || Y > m || !canPass[X][Y]) {
+				continue;
+			}
+			if (dist[X][Y] > dist[que.front().x][que.front().y] + 1) {
+				dist[X][Y] = dist[que.front().x][que.front().y] + 1;
+				que.push(Point(X, Y));
+				cnt++;
 			}
 		}
-		if (farthest > snake[0].size() * 2 / 3) {
-			return choice.back();
-		} else {
-			return choice.front();
+		que.pop();
+	}
+	return cnt;
+}
+
+int SearchDecision()
+{
+	vector<DecisionType> choice;
+	for (int i = 0; i < 4; ++i) {
+		if (validDirection(0, i)) {
+			int w = BlockSize(Point(snake[0].front().x + dx[i], snake[0].front().y + dy[i]));
+			choice.push_back(DecisionType(i, w, dangerous[snake[0].front().x + dx[i]][snake[0].front().y + dy[i]]));
 		}
 	}
-RANDOM_DECISION:
-	{
-		vector<int> choice;
-		for (int i = 0; i < 4; ++i) {
-			if (validDirection(0, i)) {
-				choice.push_back(i);
-			}
+	return Choose(choice);
+}
+
+int RandomDecision()
+{
+	vector<int> choice;
+	for (int i = 0; i < 4; ++i) {
+		if (validDirection(0, i)) {
+			choice.push_back(i);
 		}
-		return choice[rand() % choice.size()];
 	}
+	return choice[rand() % choice.size()];
 }
