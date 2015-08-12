@@ -148,7 +148,7 @@ pair<int, int> Search(list<Point> *snake, const int &step, const int &round);
 
 int MakeDecision()
 {
-	pair<int, int> result = Search(snake, 4, total);
+	pair<int, int> result = Search(snake, 6, total);
 	return result.first;
 }
 
