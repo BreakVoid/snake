@@ -1,17 +1,26 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <climits>
+
 #include <iostream>
+#include <sstream>
+#include <fstream>
+
 #include <list>
+#include <vector>
+#include <queue>
+#include <deque>
 #include <string>
 #include <ctime>
 #include "jsoncpp/json.h"
+
 using namespace std;
 int n, m;
-const int maxn = 25;
-const int dx[4] = { -1,0,1,0 };
-const int dy[4] = { 0,1,0,-1 };
-bool invalid[maxn][maxn];
+const int MAX_N = 25;
+const int dx[4] = {-1,0,1,0};
+const int dy[4] = {0,1,0,-1};
+bool invalid[MAX_N][MAX_N];
 
 struct Point {
 	int x, y;
@@ -36,7 +45,7 @@ void deleteEnd(list<Point> *snake, const int &id)     //删除蛇尾
 	snake[id].pop_back();
 }
 
-void move(list<Point> *snake, const int &id, const int &dire, const int &num)  //编号为id的蛇朝向dire方向移动一步
+void Move(list<Point> *snake, const int &id, const int &dire, const int &num)  //编号为id的蛇朝向dire方向移动一步
 {
 	Point p = *(snake[id].begin());
 	int x = p.x + dx[dire];
@@ -73,6 +82,8 @@ bool validDirection(list<Point> *snake, const int &id, const int &k)  //判断当前
 	return true;
 }
 
+int total = 0;
+
 int main()
 {
 	memset(invalid, 0, sizeof(invalid));
@@ -106,15 +117,15 @@ int main()
 	}
 
 	//根据历史信息恢复现场
-	int total = input["responses"].size();
+	total = input["responses"].size();
 
 	int dire;
 	for (int i = 0; i < total; i++) {
 		dire = input["responses"][i]["direction"].asInt();
-		move(0, dire, i);
+		Move(snake, 0, dire, i);
 
 		dire = input["requests"][i + 1]["direction"].asInt();
-		move(1, dire, i);
+		Move(snake, 1, dire, i);
 	}
 
 	if (!whetherGrow(total)) // 本回合两条蛇生长
@@ -122,7 +133,7 @@ int main()
 		deleteEnd(snake, 0);
 		deleteEnd(snake, 1);
 	}
-	
+
 	int MakeDecision();
 	Json::Value ret;
 	ret["response"]["direction"] = MakeDecision();
@@ -133,9 +144,148 @@ int main()
 	return 0;
 }
 
-
+pair<int, int> Search(list<Point> *snake, const int &step, const int &round);
 
 int MakeDecision()
 {
+	pair<int, int> result = Search(snake, 4, total);
+	return result.first;
+}
 
+int grid[MAX_N][MAX_N] = {0};
+int canPass[MAX_N][MAX_N] = {0};
+int dist[MAX_N][MAX_N] = {0};
+
+#ifdef _DEBUG
+void Debug(string filename)
+{
+	ofstream debug(filename);
+	for (int i = 1; i <= n; ++i) {
+		for (int j = 1; j <= m; ++j) {
+			debug << setw(12) << grid[i][j];
+		}
+		debug << endl;
+	}
+	debug << endl;
+	for (int i = 1; i <= n; ++i) {
+		for (int j = 1; j <= m; ++j) {
+			debug << setw(12) << canPass[i][j];
+		}
+		debug << endl;
+	}
+	debug << endl;
+	for (int i = 1; i <= n; ++i) {
+		for (int j = 1; j <= m; ++j) {
+			debug << setw(12) << dist[i][j];
+		}
+		debug << endl;
+	}
+	debug << endl;
+	debug.close();
+}
+#endif
+
+void MaintainGrid(list<Point> *snake)
+{
+	for (int i = 1; i <= n; ++i) {
+		for (int j = 1; j <= m; ++j) {
+			if (invalid[i][j]) {
+				grid[i][j] = INT_MAX;
+			} else {
+				grid[i][j] = 0;
+			}
+		}
+	}
+	for (int id = 0; id <= 1; ++id) {
+		int roundCnt = total + 1;
+		for (list<Point>::reverse_iterator iter = snake[id].rbegin(); iter != snake[id].rend(); ++iter) {
+			while (whetherGrow(roundCnt)) {
+				++roundCnt;
+			}
+			grid[iter->x][iter->y] = (roundCnt++) - total;
+		}
+	}
+}
+
+void CalcCanPass(list<Point> *snake)
+{
+	int uX = snake[0].front().x;
+	int uY = snake[0].front().y;
+	for (int i = 1; i <= n; ++i) {
+		for (int j = 1; j <= m; ++j) {
+			dist[i][j] = abs(uX - i) + abs(uY - j);
+			if (dist[i][j] >= grid[i][j]) {
+				canPass[i][j] = true;
+			} else {
+				canPass[i][j] = false;
+			}
+		}
+	}
+}
+
+Point que[MAX_N * MAX_N];
+
+int Evaluate(list<Point> *snake)
+{
+	MaintainGrid(snake);
+	CalcCanPass(snake);
+	memset(dist, 0x7f, sizeof(dist));
+	int tail = 0;
+	que[tail++] = snake[0].front();
+	for (int i = 0; i < tail; ++i) {
+		Point u = que[i];
+		for (int i = 0; i < 4; ++i) {
+			int X = u.x + dx[i];
+			int Y = u.y + dy[i];
+			if (X < 1 || Y < 1 || X > n || Y > m) {
+				continue;
+			}
+			if (dist[X][Y] > dist[u.x][u.y] + 1) {
+				dist[X][Y] = dist[u.x][u.y] + 1;
+				que[tail++] = Point(X, Y);
+			}
+		}
+	}
+	return tail;
+}
+
+pair<int, int> Search(list<Point> *snake, const int &step, const int &round)
+{
+	if (step == 0) {
+		return make_pair(-1, Evaluate(snake));
+	} else {
+		pair<int, int> best = make_pair(-1, -1);
+		for (int i = 0; i < 4; ++i) {
+			if (validDirection(snake, 0, i)) {
+				bool flag = false;
+				for (int j = 0; j < 4; ++j) {
+					if (validDirection(snake, 1, j)) {
+						flag = true;
+						list<Point> newSnake[2];
+						for (int id = 0; id <= 1; ++id) {
+							for (list<Point>::iterator iter = snake[id].begin(); iter != snake[id].end(); ++iter) {
+								newSnake[id].push_back(*iter);
+							}
+						}
+						Move(newSnake, 0, i, round);
+						Move(newSnake, 1, j, round);
+						pair<int, int> result = Search(newSnake, step - 1, round + 1);
+						if (result.second > best.second) {
+							best = result;
+							best.first = i;
+						} else if (result.second == best.second) {
+							int rate = rand() % 10000;
+							if (rate > 6180) {
+								best.first = i;
+							}
+						}
+					}
+				}
+				if (!flag) {
+					return make_pair(i, INT_MAX);
+				}
+			}
+		}
+		return best;
+	}
 }
