@@ -80,6 +80,7 @@ bool validDirection(int id, int k)  //判断当前移动方向的下一格是否合法
 	return true;
 }
 
+int total = 0;
 int MakeDecision();
 
 int main()
@@ -115,7 +116,7 @@ int main()
 	}
 
 	//根据历史信息恢复现场
-	int total = input["responses"].size();
+	total = input["responses"].size();
 
 	int dire;
 	for (int i = 0; i < total; i++) {
@@ -142,8 +143,11 @@ int main()
 }
 
 int grid[MAX_N][MAX_N] = {0};
+int canPass[MAX_N][MAX_N] = {0};
+int dist[MAX_N][MAX_N] = {0};
 
-void MaintainGrid()
+
+void MaintainGrid(list<Point> *snake)
 {
 	for (int i = 1; i <= n; ++i) {
 		for (int j = 1; j <= m; ++j) {
@@ -154,14 +158,32 @@ void MaintainGrid()
 			}
 		}
 	}
-for (int id = 0; id <= 1; ++id) {
-	for (list<Point>::iterator iter = snake[id].begin(); iter != snake[id].end(); ++iter) {
-		grid[iter->x][iter->y] = id == 0 ? 1 : -1;
+	for (int id = 0; id <= 1; ++id) {
+		int roundCnt = total + 1;
+		for (list<Point>::reverse_iterator iter = snake[id].rbegin(); iter != snake[id].rend(); ++iter) {
+			while (whetherGrow(roundCnt)) {
+				++roundCnt;
+			}
+			grid[iter->x][iter->y] = (roundCnt++) - total;
+		}
 	}
 }
-}
 
-int dist[MAX_N][MAX_N] = {0};
+void CalcCanPass(list<Point> *snake)
+{
+	int uX = snake[0].front().x;
+	int uY = snake[0].front().y;
+	for (int i = 1; i <= n; ++i) {
+		for (int j = 1; j <= m; ++j) {
+			dist[i][j] = abs(uX - i) + abs(uY - j);
+			if (dist[i][j] >= grid[i][j]) {
+				canPass[i][j] = true;
+			} else {
+				canPass[i][j] = false;
+			}
+		}
+	}
+}
 
 void BFS(const Point &S)
 {
@@ -173,7 +195,7 @@ void BFS(const Point &S)
 		for (int i = 0; i < 4; ++i) {
 			int X = que.front().x + dx[i];
 			int Y = que.front().y + dy[i];
-			if (X < 1 || Y < 1 || X > n || Y > m || grid[X][Y] > 0) {
+			if (X < 1 || Y < 1 || X > n || Y > m || !canPass[X][Y]) {
 				continue;
 			}
 			if (dist[X][Y] > dist[que.front().x][que.front().y] + 1) {
@@ -198,45 +220,36 @@ inline Point GetTail(const int &id)
 int MakeDecision()
 {
 	srand((unsigned)time(NULL));
-	MaintainGrid();
+	MaintainGrid(snake);
+	CalcCanPass(snake);
 	Point head = GetHead(0);
-	Point tail = GetTail(0);
-	//BFS from the tail of snake No.0
-	BFS(tail);
-	if (dist[head.x][head.y] < 0x7f7f7f7f) {
-		// Can reach the tail of snake No.0
-		goto MAKE_DECISION;
-	} else {
-		// Cannot reach the tail of snake No.0
-		tail = GetTail(1);
-		BFS(tail);
-		// Try to reach the tail of snake No.1
-		if (dist[head.x][head.y] < 0x7f7f7f7f) {
-			// Can reach the tail of snake No.1
-			goto MAKE_DECISION;
-		} else {
-			// Cannot reach the tail of snake No.1
-			Point target;
-			BFS(head);
-			for (list<Point>::iterator 
-				 iter1 = snake[0].begin(), 
-				 iter2 = snake[1].begin();
-				iter1 != snake[0].end() && iter2 != snake[1].end();
-					iter1++, iter2++) {
-				if (dist[iter2->x][iter2->y] < 0x7f7f7f7f) {
-					target = *iter2;
-				}
-				if (dist[iter1->x][iter1->y] < 0x7f7f7f7f) {
-					target = *iter1;
-				}
-			}
-			if (target.x == 0 && target.y == 0) {
-				goto RANDOM_DECISION;
-			}
-			BFS(target);
-			goto MAKE_DECISION;
+	BFS(head);
+	Point target(-1, -1);
+	for (list<Point>::iterator iter = snake[1].begin(); iter != snake[1].end(); iter++) {
+		if (dist[iter->x][iter->y] < 0x7f7f7f7f) {
+			target = Point(iter->x, iter->y);
 		}
 	}
+	if (target.x == -1 && target.y == -1) {
+		int maxDist = -1;
+		for (int i = 1; i <= n; ++i) {
+			for (int j = 1; j <= m; ++j) {
+				if (dist[i][j] < 0x7f7f7f7f) {
+					maxDist = max(maxDist, dist[i][j]);
+				}
+			}
+		}
+		vector<Point> choice;
+		for (int i = 1; i <= n; ++i) {
+			for (int j = 1; j <= m; ++j) {
+				if (dist[i][j] == maxDist) {
+					choice.push_back(Point(i, j));
+				}
+			}
+		}
+		target = choice[rand() % choice.size()];
+	}
+	BFS(target);
 MAKE_DECISION:
 	{
 		deque<int> choice;

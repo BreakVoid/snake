@@ -1,4 +1,10 @@
 snake/Debug/
 snake/Release/
+Debug/
+Release/
 *.opensdf
 *.sdf
+*.aux
+*.log
+*.toc
+snake.synctex.gz
